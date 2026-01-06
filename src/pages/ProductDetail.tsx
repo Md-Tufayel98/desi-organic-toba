@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
+import { useParams, Link } from "react-router-dom";
 import { ChevronLeft, ChevronRight, Star, Minus, Plus, ShoppingCart, Truck, Shield, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import TopNotificationBar from "@/components/layout/TopNotificationBar";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import MiniCartPopup from "@/components/cart/MiniCartPopup";
 
 interface ProductVariant {
   id: string;
@@ -23,12 +24,19 @@ interface ProductVariant {
 
 const ProductDetail = () => {
   const { slug } = useParams();
-  const navigate = useNavigate();
-  const { addItem, getItemCount } = useCart();
+  const { addItem, getItemCount, getSubtotal } = useCart();
   const { toast } = useToast();
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [quantity, setQuantity] = useState(1);
+  const [showMiniCart, setShowMiniCart] = useState(false);
+  const [addedItem, setAddedItem] = useState<{
+    name_bn: string;
+    variant_name_bn?: string;
+    image_url: string;
+    price: number;
+    quantity: number;
+  } | null>(null);
 
   // Demo product data - will be replaced with Supabase fetch
   const product = {
@@ -92,12 +100,14 @@ const ProductDetail = () => {
       stock_quantity: stockQuantity,
     });
 
-    toast({
-      title: "কার্টে যোগ করা হয়েছে",
-      description: `${product.name_bn} ${selectedVariant?.name_bn || ""} (${quantity}টি)`,
+    setAddedItem({
+      name_bn: product.name_bn,
+      variant_name_bn: selectedVariant?.name_bn,
+      image_url: product.images[0],
+      price: currentPrice,
+      quantity: quantity,
     });
-
-    navigate("/cart");
+    setShowMiniCart(true);
   };
 
   const nextImage = () => {
@@ -411,6 +421,14 @@ const ProductDetail = () => {
       </main>
 
       <Footer />
+
+      <MiniCartPopup
+        isOpen={showMiniCart}
+        onClose={() => setShowMiniCart(false)}
+        addedItem={addedItem}
+        cartTotal={getSubtotal()}
+        cartItemCount={getItemCount()}
+      />
     </div>
   );
 };
