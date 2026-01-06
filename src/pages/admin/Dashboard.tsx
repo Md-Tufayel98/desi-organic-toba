@@ -1,61 +1,21 @@
+import { Link } from "react-router-dom";
 import {
   ShoppingCart,
   Package,
   Users,
   TrendingUp,
   ArrowUp,
-  ArrowDown,
   Clock,
   AlertTriangle,
+  MessageCircle,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { useDashboardStats } from "@/hooks/useAdminData";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const AdminDashboard = () => {
-  // Demo stats data
-  const stats = [
-    {
-      title: "আজকের অর্ডার",
-      value: "১২",
-      change: "+৩",
-      changeType: "positive",
-      icon: ShoppingCart,
-    },
-    {
-      title: "মোট পণ্য",
-      value: "৪৮",
-      change: "+২",
-      changeType: "positive",
-      icon: Package,
-    },
-    {
-      title: "মোট কাস্টমার",
-      value: "২৫৬",
-      change: "+১৫",
-      changeType: "positive",
-      icon: Users,
-    },
-    {
-      title: "আজকের বিক্রি",
-      value: "৳১৫,৮৫০",
-      change: "+১২%",
-      changeType: "positive",
-      icon: TrendingUp,
-    },
-  ];
-
-  const recentOrders = [
-    { id: "ORD-1234", customer: "রহিম উদ্দিন", amount: 1850, status: "pending" },
-    { id: "ORD-1235", customer: "ফাতেমা বেগম", amount: 750, status: "confirmed" },
-    { id: "ORD-1236", customer: "করিম সাহেব", amount: 2200, status: "shipped" },
-    { id: "ORD-1237", customer: "নাসরিন আক্তার", amount: 480, status: "delivered" },
-    { id: "ORD-1238", customer: "আলী হোসেন", amount: 1100, status: "pending" },
-  ];
-
-  const lowStockProducts = [
-    { name: "সুন্দরবনের খাঁটি মধু", stock: 5 },
-    { name: "খাঁটি গাওয়া ঘি (৫০০গ্রাম)", stock: 3 },
-    { name: "কালোজিরা তেল", stock: 8 },
-  ];
+  const { data: stats, isLoading } = useDashboardStats();
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -78,9 +38,46 @@ const AdminDashboard = () => {
       confirmed: "কনফার্মড",
       shipped: "শিপড",
       delivered: "ডেলিভার্ড",
+      cancelled: "বাতিল",
     };
     return labels[status] || status;
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-64" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <Skeleton key={i} className="h-[120px]" />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  const statCards = [
+    {
+      title: "আজকের অর্ডার",
+      value: stats?.todayOrders || 0,
+      icon: ShoppingCart,
+    },
+    {
+      title: "মোট পণ্য",
+      value: stats?.totalProducts || 0,
+      icon: Package,
+    },
+    {
+      title: "মোট কাস্টমার",
+      value: stats?.totalCustomers || 0,
+      icon: Users,
+    },
+    {
+      title: "আজকের বিক্রি",
+      value: `৳${(stats?.todaySales || 0).toLocaleString()}`,
+      icon: TrendingUp,
+    },
+  ];
 
   return (
     <div className="space-y-6">
@@ -91,7 +88,7 @@ const AdminDashboard = () => {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {stats.map((stat) => (
+        {statCards.map((stat) => (
           <Card key={stat.title}>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
@@ -100,20 +97,6 @@ const AdminDashboard = () => {
                   <p className="text-2xl font-bold text-foreground mt-1">
                     {stat.value}
                   </p>
-                  <div
-                    className={`flex items-center gap-1 mt-1 text-sm ${
-                      stat.changeType === "positive"
-                        ? "text-green-600"
-                        : "text-red-600"
-                    }`}
-                  >
-                    {stat.changeType === "positive" ? (
-                      <ArrowUp className="h-3 w-3" />
-                    ) : (
-                      <ArrowDown className="h-3 w-3" />
-                    )}
-                    {stat.change}
-                  </div>
                 </div>
                 <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center">
                   <stat.icon className="h-6 w-6 text-primary" />
@@ -135,31 +118,38 @@ const AdminDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {recentOrders.map((order) => (
-                <div
-                  key={order.id}
-                  className="flex items-center justify-between p-3 bg-muted/50 rounded-lg"
-                >
-                  <div>
-                    <p className="font-medium text-foreground">{order.id}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {order.customer}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-medium text-foreground">
-                      ৳{order.amount.toLocaleString()}
-                    </p>
-                    <span
-                      className={`inline-block px-2 py-0.5 text-xs rounded-full ${getStatusColor(
-                        order.status
-                      )}`}
-                    >
-                      {getStatusLabel(order.status)}
-                    </span>
-                  </div>
-                </div>
-              ))}
+              {stats?.recentOrders?.length === 0 ? (
+                <p className="text-center text-muted-foreground py-4">
+                  কোনো অর্ডার নেই
+                </p>
+              ) : (
+                stats?.recentOrders?.map((order: any) => (
+                  <Link
+                    key={order.id}
+                    to="/admin/orders"
+                    className="flex items-center justify-between p-3 bg-muted/50 rounded-lg hover:bg-muted transition-colors"
+                  >
+                    <div>
+                      <p className="font-medium text-foreground font-mono">{order.order_number}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {order.customer_name}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-medium text-foreground">
+                        ৳{Number(order.total_amount).toLocaleString()}
+                      </p>
+                      <span
+                        className={`inline-block px-2 py-0.5 text-xs rounded-full ${getStatusColor(
+                          order.order_status
+                        )}`}
+                      >
+                        {getStatusLabel(order.order_status)}
+                      </span>
+                    </div>
+                  </Link>
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
@@ -174,26 +164,66 @@ const AdminDashboard = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {lowStockProducts.map((product, index) => (
-                <div
-                  key={index}
-                  className="flex items-center justify-between p-3 bg-destructive/5 rounded-lg border border-destructive/20"
-                >
-                  <p className="font-medium text-foreground">{product.name}</p>
-                  <span className="text-sm font-bold text-destructive">
-                    {product.stock}টি বাকি
-                  </span>
-                </div>
-              ))}
-              {lowStockProducts.length === 0 && (
+              {stats?.lowStock?.length === 0 ? (
                 <p className="text-center text-muted-foreground py-4">
                   সব পণ্যের স্টক পর্যাপ্ত আছে
                 </p>
+              ) : (
+                stats?.lowStock?.map((product: any, index: number) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between p-3 bg-destructive/5 rounded-lg border border-destructive/20"
+                  >
+                    <p className="font-medium text-foreground">{product.name_bn}</p>
+                    <span className="text-sm font-bold text-destructive">
+                      {product.stock_quantity}টি বাকি
+                    </span>
+                  </div>
+                ))
               )}
             </div>
           </CardContent>
         </Card>
       </div>
+
+      {/* Quick Links */}
+      <Card>
+        <CardHeader>
+          <CardTitle>দ্রুত লিঙ্ক</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <Link
+              to="/admin/orders"
+              className="p-4 bg-muted/50 rounded-lg hover:bg-muted transition-colors text-center"
+            >
+              <ShoppingCart className="h-6 w-6 mx-auto mb-2 text-primary" />
+              <span className="text-sm font-medium">অর্ডার</span>
+            </Link>
+            <Link
+              to="/admin/products"
+              className="p-4 bg-muted/50 rounded-lg hover:bg-muted transition-colors text-center"
+            >
+              <Package className="h-6 w-6 mx-auto mb-2 text-primary" />
+              <span className="text-sm font-medium">পণ্য</span>
+            </Link>
+            <Link
+              to="/admin/customers"
+              className="p-4 bg-muted/50 rounded-lg hover:bg-muted transition-colors text-center"
+            >
+              <Users className="h-6 w-6 mx-auto mb-2 text-primary" />
+              <span className="text-sm font-medium">কাস্টমার</span>
+            </Link>
+            <Link
+              to="/admin/chat"
+              className="p-4 bg-muted/50 rounded-lg hover:bg-muted transition-colors text-center"
+            >
+              <MessageCircle className="h-6 w-6 mx-auto mb-2 text-primary" />
+              <span className="text-sm font-medium">চ্যাট</span>
+            </Link>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 };

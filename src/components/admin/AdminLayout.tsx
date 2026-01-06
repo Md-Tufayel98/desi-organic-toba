@@ -6,6 +6,7 @@ import {
   ShoppingCart,
   FolderTree,
   Users,
+  MessageCircle,
   Tag,
   Truck,
   Image,
@@ -34,6 +35,7 @@ const AdminLayout = () => {
     { icon: Tag, label: "কুপন", href: "/admin/coupons" },
     { icon: Truck, label: "ডেলিভারি জোন", href: "/admin/delivery-zones" },
     { icon: Image, label: "ব্যানার", href: "/admin/banners" },
+    { icon: MessageCircle, label: "লাইভ চ্যাট", href: "/admin/chat" },
     { icon: Settings, label: "সেটিংস", href: "/admin/settings" },
   ];
 

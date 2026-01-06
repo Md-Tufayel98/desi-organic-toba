@@ -28,6 +28,7 @@ import AdminCoupons from "./pages/admin/Coupons";
 import AdminDeliveryZones from "./pages/admin/DeliveryZones";
 import AdminBanners from "./pages/admin/Banners";
 import AdminSettings from "./pages/admin/Settings";
+import AdminChat from "./pages/admin/Chat";
 
 const queryClient = new QueryClient();
 
@@ -62,6 +63,7 @@ const App = () => (
                 <Route path="delivery-zones" element={<AdminDeliveryZones />} />
                 <Route path="banners" element={<AdminBanners />} />
                 <Route path="settings" element={<AdminSettings />} />
+                <Route path="chat" element={<AdminChat />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />

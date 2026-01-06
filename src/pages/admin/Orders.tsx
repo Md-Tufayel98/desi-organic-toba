@@ -6,6 +6,7 @@ import {
   MoreHorizontal,
   ChevronLeft,
   ChevronRight,
+  Plus,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,64 +32,20 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useOrders, useUpdateOrder } from "@/hooks/useAdminData";
+import { OrderDialog } from "@/components/admin/dialogs/OrderDialog";
+import { Skeleton } from "@/components/ui/skeleton";
+import { format } from "date-fns";
+import { bn } from "date-fns/locale";
 
 const AdminOrders = () => {
   const [statusFilter, setStatusFilter] = useState("all");
   const [searchQuery, setSearchQuery] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editOrder, setEditOrder] = useState<any>(null);
 
-  // Demo orders data
-  const orders = [
-    {
-      id: "ORD-20240120-1234",
-      customer: "রহিম উদ্দিন",
-      phone: "01712345678",
-      items: 3,
-      total: 1850,
-      status: "pending",
-      payment: "cod",
-      date: "২০ জানুয়ারি, ২০২৪",
-    },
-    {
-      id: "ORD-20240119-5678",
-      customer: "ফাতেমা বেগম",
-      phone: "01812345678",
-      items: 1,
-      total: 750,
-      status: "confirmed",
-      payment: "partial",
-      date: "১৯ জানুয়ারি, ২০২৪",
-    },
-    {
-      id: "ORD-20240118-9012",
-      customer: "করিম সাহেব",
-      phone: "01912345678",
-      items: 4,
-      total: 2200,
-      status: "shipped",
-      payment: "cod",
-      date: "১৮ জানুয়ারি, ২০২৪",
-    },
-    {
-      id: "ORD-20240117-3456",
-      customer: "নাসরিন আক্তার",
-      phone: "01612345678",
-      items: 2,
-      total: 480,
-      status: "delivered",
-      payment: "paid",
-      date: "১৭ জানুয়ারি, ২০২৪",
-    },
-    {
-      id: "ORD-20240116-7890",
-      customer: "আলী হোসেন",
-      phone: "01512345678",
-      items: 5,
-      total: 3100,
-      status: "cancelled",
-      payment: "refunded",
-      date: "১৬ জানুয়ারি, ২০২৪",
-    },
-  ];
+  const { data: orders, isLoading } = useOrders();
+  const updateOrder = useUpdateOrder();
 
   const getStatusBadge = (status: string) => {
     const config: Record<string, { label: string; className: string }> = {
@@ -103,29 +60,59 @@ const AdminOrders = () => {
     return <Badge className={className}>{label}</Badge>;
   };
 
-  const getPaymentBadge = (payment: string) => {
+  const getPaymentBadge = (status: string) => {
     const config: Record<string, { label: string; variant: "outline" | "default" | "secondary" }> = {
-      cod: { label: "COD", variant: "outline" },
+      unpaid: { label: "আনপেইড", variant: "outline" },
       partial: { label: "আংশিক", variant: "secondary" },
       paid: { label: "পেইড", variant: "default" },
       refunded: { label: "রিফান্ড", variant: "outline" },
     };
-    const { label, variant } = config[payment] || config.cod;
+    const { label, variant } = config[status] || config.unpaid;
     return <Badge variant={variant}>{label}</Badge>;
   };
 
-  const filteredOrders = orders.filter((order) => {
-    if (statusFilter !== "all" && order.status !== statusFilter) return false;
-    if (searchQuery && !order.id.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !order.customer.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+  const filteredOrders = orders?.filter((order: any) => {
+    if (statusFilter !== "all" && order.order_status !== statusFilter) return false;
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      return (
+        order.order_number?.toLowerCase().includes(query) ||
+        order.customer_name?.toLowerCase().includes(query) ||
+        order.customer_phone?.includes(query)
+      );
+    }
     return true;
-  });
+  }) || [];
+
+  const handleEdit = (order: any) => {
+    setEditOrder(order);
+    setDialogOpen(true);
+  };
+
+  const handleStatusChange = async (id: string, order_status: string) => {
+    await updateOrder.mutateAsync({ id, order_status });
+  };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <Skeleton className="h-8 w-64" />
+        <Skeleton className="h-[400px] w-full" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">অর্ডার ম্যানেজমেন্ট</h1>
-        <p className="text-muted-foreground">সকল অর্ডার দেখুন এবং পরিচালনা করুন</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">অর্ডার ম্যানেজমেন্ট</h1>
+          <p className="text-muted-foreground">সকল অর্ডার দেখুন এবং পরিচালনা করুন ({orders?.length || 0}টি)</p>
+        </div>
+        <Button className="gap-2" onClick={() => { setEditOrder(null); setDialogOpen(true); }}>
+          <Plus className="h-4 w-4" />
+          নতুন অর্ডার
+        </Button>
       </div>
 
       {/* Filters */}
@@ -133,7 +120,7 @@ const AdminOrders = () => {
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="অর্ডার নম্বর বা কাস্টমার খুঁজুন..."
+            placeholder="নাম, ফোন বা অর্ডার নম্বর দিয়ে খুঁজুন..."
             className="pl-10"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
@@ -172,50 +159,68 @@ const AdminOrders = () => {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {filteredOrders.map((order) => (
-              <TableRow key={order.id}>
-                <TableCell className="font-medium">{order.id}</TableCell>
-                <TableCell>
-                  <div>
-                    <p className="font-medium">{order.customer}</p>
-                    <p className="text-sm text-muted-foreground">{order.phone}</p>
-                  </div>
-                </TableCell>
-                <TableCell className="text-center">{order.items}টি</TableCell>
-                <TableCell className="text-right font-medium">
-                  ৳{order.total.toLocaleString()}
-                </TableCell>
-                <TableCell className="text-center">
-                  {getStatusBadge(order.status)}
-                </TableCell>
-                <TableCell className="text-center">
-                  {getPaymentBadge(order.payment)}
-                </TableCell>
-                <TableCell className="text-center text-sm">
-                  {order.date}
-                </TableCell>
-                <TableCell className="text-right">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon">
-                        <MoreHorizontal className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem>
-                        <Eye className="h-4 w-4 mr-2" />
-                        বিস্তারিত দেখুন
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>স্ট্যাটাস আপডেট</DropdownMenuItem>
-                      <DropdownMenuItem>ট্র্যাকিং যোগ করুন</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive">
-                        অর্ডার বাতিল
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+            {filteredOrders.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                  কোনো অর্ডার পাওয়া যায়নি
                 </TableCell>
               </TableRow>
-            ))}
+            ) : (
+              filteredOrders.map((order: any) => (
+                <TableRow key={order.id}>
+                  <TableCell className="font-medium font-mono">{order.order_number}</TableCell>
+                  <TableCell>
+                    <div>
+                      <p className="font-medium">{order.customer_name}</p>
+                      <p className="text-sm text-muted-foreground">{order.customer_phone}</p>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-center">{order.order_items?.[0]?.count || 0}টি</TableCell>
+                  <TableCell className="text-right font-medium">
+                    ৳{Number(order.total_amount).toLocaleString()}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {getStatusBadge(order.order_status)}
+                  </TableCell>
+                  <TableCell className="text-center">
+                    {getPaymentBadge(order.payment_status)}
+                  </TableCell>
+                  <TableCell className="text-center text-sm">
+                    {format(new Date(order.created_at), "dd MMM, yyyy", { locale: bn })}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onClick={() => handleEdit(order)}>
+                          <Eye className="h-4 w-4 mr-2" />
+                          বিস্তারিত / এডিট
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleStatusChange(order.id, "confirmed")}>
+                          কনফার্ম করুন
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleStatusChange(order.id, "shipped")}>
+                          শিপ করুন
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleStatusChange(order.id, "delivered")}>
+                          ডেলিভার্ড
+                        </DropdownMenuItem>
+                        <DropdownMenuItem 
+                          className="text-destructive"
+                          onClick={() => handleStatusChange(order.id, "cancelled")}
+                        >
+                          অর্ডার বাতিল
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
           </TableBody>
         </Table>
 
@@ -224,19 +229,14 @@ const AdminOrders = () => {
           <p className="text-sm text-muted-foreground">
             {filteredOrders.length}টি অর্ডার দেখানো হচ্ছে
           </p>
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="icon" disabled>
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="sm">
-              ১
-            </Button>
-            <Button variant="outline" size="icon" disabled>
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
         </div>
       </div>
+
+      <OrderDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        order={editOrder}
+      />
     </div>
   );
 };
