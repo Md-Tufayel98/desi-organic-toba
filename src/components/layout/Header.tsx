@@ -21,8 +21,7 @@ const Header = ({ cartCount = 0 }: HeaderProps) => {
 
   const navLinks = [
     { name: "হোম", href: "/" },
-    { name: "সকল পণ্য", href: "/products" },
-    { name: "ক্যাটাগরি", href: "/categories" },
+    { name: "সকল পণ্য", href: "/shop" },
     { name: "আমাদের সম্পর্কে", href: "/about" },
     { name: "যোগাযোগ", href: "/contact" },
   ];
