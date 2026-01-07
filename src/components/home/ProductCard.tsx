@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCart } from "@/contexts/CartContext";
 import { useToast } from "@/hooks/use-toast";
+import { trackAddToCart } from "@/lib/facebook-pixel";
 
 interface ProductCardProps {
   id: string;
@@ -59,6 +60,15 @@ const ProductCard = ({
       price: sale_price || base_price,
       quantity: 1,
       stock_quantity: stock_quantity,
+    });
+
+    // Track AddToCart event
+    trackAddToCart({
+      content_name: name_bn,
+      content_ids: [id],
+      content_type: 'product',
+      value: sale_price || base_price,
+      currency: 'BDT',
     });
 
     toast({

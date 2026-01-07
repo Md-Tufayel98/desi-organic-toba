@@ -15,6 +15,7 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import MiniCartPopup from "@/components/cart/MiniCartPopup";
 import { Skeleton } from "@/components/ui/skeleton";
+import { trackViewContent, trackAddToCart } from "@/lib/facebook-pixel";
 
 interface ProductVariant {
   id: string;
@@ -180,6 +181,19 @@ const ProductDetail = () => {
     }
   }, [variants, selectedVariant]);
 
+  // Track ViewContent when product is loaded
+  useEffect(() => {
+    if (product) {
+      trackViewContent({
+        content_name: product.name_bn,
+        content_ids: [product.id],
+        content_type: 'product',
+        value: product.sale_price || product.base_price,
+        currency: 'BDT',
+      });
+    }
+  }, [product?.id]);
+
   if (productLoading) {
     return (
       <div className="min-h-screen flex flex-col">
@@ -244,6 +258,15 @@ const ProductDetail = () => {
       price: currentPrice,
       quantity: quantity,
       stock_quantity: stockQuantity,
+    });
+
+    // Track AddToCart event
+    trackAddToCart({
+      content_name: product.name_bn,
+      content_ids: [product.id],
+      content_type: 'product',
+      value: currentPrice * quantity,
+      currency: 'BDT',
     });
 
     setAddedItem({

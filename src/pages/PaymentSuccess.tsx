@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import TopNotificationBar from "@/components/layout/TopNotificationBar";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import { trackPurchase } from "@/lib/facebook-pixel";
 
 const PaymentSuccess = () => {
   const [searchParams] = useSearchParams();
@@ -104,6 +105,15 @@ const PaymentSuccess = () => {
                 }
               }
               
+              // Track Purchase event
+              trackPurchase({
+                content_ids: orderData.items.map((item: any) => item.productId),
+                contents: orderData.items.map((item: any) => ({ id: item.productId, quantity: item.quantity })),
+                num_items: orderData.items.reduce((sum: number, item: any) => sum + item.quantity, 0),
+                value: orderData.totalAmount,
+                currency: 'BDT',
+              });
+
               // Clear pending order and cart
               localStorage.removeItem("pending_order");
               clearCart();

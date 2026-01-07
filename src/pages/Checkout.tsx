@@ -20,6 +20,7 @@ import TopNotificationBar from "@/components/layout/TopNotificationBar";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { useQuery } from "@tanstack/react-query";
+import { trackInitiateCheckout, trackPurchase } from "@/lib/facebook-pixel";
 
 const checkoutSchema = z.object({
   fullName: z.string().min(2, "নাম দিন"),
@@ -100,6 +101,19 @@ const Checkout = () => {
       setSelectedZone(deliveryZones[0].id);
     }
   }, [deliveryZones, selectedZone]);
+
+  // Track InitiateCheckout when page loads
+  useEffect(() => {
+    if (items.length > 0) {
+      trackInitiateCheckout({
+        content_ids: items.map(item => item.productId),
+        contents: items.map(item => ({ id: item.productId, quantity: item.quantity })),
+        num_items: items.reduce((sum, item) => sum + item.quantity, 0),
+        value: getSubtotal(),
+        currency: 'BDT',
+      });
+    }
+  }, []);
 
   const selectedZoneData = deliveryZones.find((z) => z.id === selectedZone);
   const subtotal = getSubtotal();
@@ -288,6 +302,16 @@ const Checkout = () => {
 
       // Mark incomplete order as converted and clear cart
       await markAsConverted();
+      
+      // Track Purchase event
+      trackPurchase({
+        content_ids: items.map(item => item.productId),
+        contents: items.map(item => ({ id: item.productId, quantity: item.quantity })),
+        num_items: items.reduce((sum, item) => sum + item.quantity, 0),
+        value: total,
+        currency: 'BDT',
+      });
+
       clearCart();
       
       toast({

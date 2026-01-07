@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { CartProvider } from "@/contexts/CartContext";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { useFacebookPixel } from "@/hooks/useFacebookPixel";
 
 // Pages
 import Index from "./pages/Index";
@@ -35,6 +36,12 @@ import LiveChatWidget from "./components/chat/LiveChatWidget";
 
 const queryClient = new QueryClient();
 
+// Facebook Pixel Tracker Component
+const FacebookPixelTracker = () => {
+  useFacebookPixel();
+  return null;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <AuthProvider>
@@ -43,6 +50,7 @@ const App = () => (
           <Toaster />
           <Sonner />
           <BrowserRouter>
+            <FacebookPixelTracker />
             <Routes>
               {/* Public Routes */}
               <Route path="/" element={<Index />} />
