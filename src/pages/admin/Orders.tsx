@@ -523,33 +523,70 @@ const AdminOrders = () => {
 
             {fraudCheckResult && (
               <div className="space-y-3">
-                {fraudCheckResult.status === "success" && fraudCheckResult.data?.couriers?.length > 0 ? (
+                {fraudCheckResult.status === "success" && fraudCheckResult.summary && fraudCheckResult.summary.total_parcel > 0 ? (
                   <>
-                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
-                      <p className="text-sm font-medium text-red-700">
-                        ⚠️ {fraudCheckResult.data.couriers.length}টি কুরিয়ার এ ইতিহাস পাওয়া গেছে
+                    {/* Summary Stats */}
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="p-2 bg-blue-50 rounded-lg">
+                        <p className="text-lg font-bold text-blue-700">{fraudCheckResult.summary.total_parcel}</p>
+                        <p className="text-xs text-blue-600">মোট অর্ডার</p>
+                      </div>
+                      <div className="p-2 bg-green-50 rounded-lg">
+                        <p className="text-lg font-bold text-green-700">{fraudCheckResult.summary.success_parcel}</p>
+                        <p className="text-xs text-green-600">সফল</p>
+                      </div>
+                      <div className="p-2 bg-red-50 rounded-lg">
+                        <p className="text-lg font-bold text-red-700">{fraudCheckResult.summary.cancelled_parcel}</p>
+                        <p className="text-xs text-red-600">বাতিল</p>
+                      </div>
+                    </div>
+
+                    {/* Success Rate */}
+                    <div className={`p-3 rounded-lg border ${
+                      fraudCheckResult.summary.success_ratio >= 80 
+                        ? "bg-green-50 border-green-200" 
+                        : fraudCheckResult.summary.success_ratio >= 50 
+                        ? "bg-yellow-50 border-yellow-200"
+                        : "bg-red-50 border-red-200"
+                    }`}>
+                      <p className={`text-sm font-medium ${
+                        fraudCheckResult.summary.success_ratio >= 80 
+                          ? "text-green-700" 
+                          : fraudCheckResult.summary.success_ratio >= 50 
+                          ? "text-yellow-700"
+                          : "text-red-700"
+                      }`}>
+                        সাকসেস রেট: {fraudCheckResult.summary.success_ratio}%
                       </p>
                     </div>
-                    <div className="space-y-2">
-                      {fraudCheckResult.data.couriers.map((courier: any, index: number) => (
-                        <div 
-                          key={index} 
-                          className="flex items-center gap-3 p-3 bg-muted rounded-lg"
-                        >
-                          {courier.logo && (
-                            <img 
-                              src={courier.logo} 
-                              alt={courier.name} 
-                              className="h-8 w-8 object-contain"
-                            />
-                          )}
-                          <div>
-                            <p className="font-medium">{courier.name}</p>
-                            <p className="text-xs text-muted-foreground capitalize">{courier.status}</p>
+
+                    {/* Courier Breakdown */}
+                    {fraudCheckResult.couriers.length > 0 && (
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium text-muted-foreground">কুরিয়ার বিবরণ:</p>
+                        {fraudCheckResult.couriers.map((courier: any, index: number) => (
+                          <div 
+                            key={index} 
+                            className="flex items-center justify-between p-3 bg-muted rounded-lg"
+                          >
+                            <div className="flex items-center gap-3">
+                              {courier.logo && (
+                                <img 
+                                  src={courier.logo} 
+                                  alt={courier.name} 
+                                  className="h-8 w-8 object-contain"
+                                />
+                              )}
+                              <p className="font-medium">{courier.name}</p>
+                            </div>
+                            <div className="text-right text-sm">
+                              <p className="text-green-600">{courier.success_parcel}/{courier.total_parcel}</p>
+                              <p className="text-xs text-muted-foreground">{courier.success_ratio}% সফল</p>
+                            </div>
                           </div>
-                        </div>
-                      ))}
-                    </div>
+                        ))}
+                      </div>
+                    )}
                   </>
                 ) : fraudCheckResult.status === "success" ? (
                   <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
