@@ -1,31 +1,59 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, Link } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Star, Minus, Plus, ShoppingCart, Truck, Shield, Check } from "lucide-react";
+import { ChevronLeft, ChevronRight, Star, Minus, Plus, ShoppingCart, Truck, Shield, Check, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { useCart } from "@/contexts/CartContext";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import TopNotificationBar from "@/components/layout/TopNotificationBar";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import MiniCartPopup from "@/components/cart/MiniCartPopup";
+import { Skeleton } from "@/components/ui/skeleton";
 
 interface ProductVariant {
   id: string;
   name_bn: string;
-  weight_value: number;
-  weight_unit: string;
+  weight_value: number | null;
+  weight_unit: string | null;
   price: number;
   sale_price?: number | null;
-  stock_quantity: number;
-  is_default: boolean;
+  stock_quantity: number | null;
+  is_default: boolean | null;
+}
+
+interface Product {
+  id: string;
+  name: string;
+  name_bn: string;
+  slug: string;
+  description_bn: string | null;
+  images: string[] | null;
+  base_price: number;
+  sale_price: number | null;
+  stock_quantity: number | null;
+  is_featured: boolean | null;
+  category_id: string | null;
+}
+
+interface Review {
+  id: string;
+  customer_name: string;
+  rating: number;
+  comment: string | null;
+  created_at: string;
 }
 
 const ProductDetail = () => {
   const { slug } = useParams();
   const { addItem, getItemCount, getSubtotal } = useCart();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [selectedVariant, setSelectedVariant] = useState<ProductVariant | null>(null);
   const [quantity, setQuantity] = useState(1);
@@ -38,51 +66,169 @@ const ProductDetail = () => {
     quantity: number;
   } | null>(null);
 
-  // Demo product data - will be replaced with Supabase fetch
-  const product = {
-    id: "2",
-    name: "Pure Deshi Ghee",
-    name_bn: "খাঁটি গাওয়া ঘি",
-    slug: "pure-deshi-ghee",
-    description_bn: "গ্রামের খাঁটি গাওয়া ঘি। দুধের সর থেকে তৈরি। কোনো ভেজাল বা রাসায়নিক নেই। রান্নায় অতুলনীয় স্বাদ এবং সুগন্ধ যোগ করে। শিশু থেকে বয়স্ক সবার জন্য নিরাপদ।",
-    images: [
-      "https://images.unsplash.com/photo-1631452180519-c014fe946bc7?w=600&h=600&fit=crop",
-      "https://images.unsplash.com/photo-1612187376442-b9a4899d2bf4?w=600&h=600&fit=crop",
-      "https://images.unsplash.com/photo-1589985270826-4b7bb135bc9d?w=600&h=600&fit=crop",
-    ],
-    category: { name_bn: "ঘি", slug: "ghee" },
-    base_price: 1200,
-    sale_price: null,
-    rating: 4.9,
-    reviews_count: 89,
-    stock_quantity: 30,
-    is_featured: true,
-    variants: [
-      { id: "v1", name_bn: "২৫০ গ্রাম", weight_value: 250, weight_unit: "g", price: 350, sale_price: null, stock_quantity: 50, is_default: false },
-      { id: "v2", name_bn: "৫০০ গ্রাম", weight_value: 500, weight_unit: "g", price: 650, sale_price: 600, stock_quantity: 30, is_default: true },
-      { id: "v3", name_bn: "১ কেজি", weight_value: 1000, weight_unit: "g", price: 1200, sale_price: null, stock_quantity: 20, is_default: false },
-    ],
-  };
+  // Review form state
+  const [reviewName, setReviewName] = useState("");
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewComment, setReviewComment] = useState("");
 
-  // Demo reviews
-  const reviews = [
-    { id: "1", customer_name: "রহিম উদ্দিন", rating: 5, comment: "অসাধারণ মানের ঘি। রান্নায় আলাদা স্বাদ।", created_at: "2024-01-15" },
-    { id: "2", customer_name: "ফাতেমা বেগম", rating: 5, comment: "খুবই ভালো। পরিবারের সবাই পছন্দ করেছে।", created_at: "2024-01-10" },
-    { id: "3", customer_name: "করিম সাহেব", rating: 4, comment: "ডেলিভারি দ্রুত হয়েছে। মান ভালো।", created_at: "2024-01-05" },
-  ];
-
-  // Set default variant
-  useState(() => {
-    const defaultVariant = product.variants.find((v) => v.is_default) || product.variants[0];
-    setSelectedVariant(defaultVariant);
+  // Fetch product by slug
+  const { data: product, isLoading: productLoading } = useQuery({
+    queryKey: ['product', slug],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('slug', slug)
+        .eq('is_active', true)
+        .single();
+      
+      if (error) throw error;
+      return data as Product;
+    },
+    enabled: !!slug,
   });
+
+  // Fetch product variants
+  const { data: variants = [] } = useQuery({
+    queryKey: ['product-variants', product?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('product_variants')
+        .select('*')
+        .eq('product_id', product!.id)
+        .eq('is_active', true)
+        .order('price');
+      
+      if (error) throw error;
+      return data as ProductVariant[];
+    },
+    enabled: !!product?.id,
+  });
+
+  // Fetch reviews
+  const { data: reviews = [] } = useQuery({
+    queryKey: ['product-reviews', product?.id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('reviews')
+        .select('*')
+        .eq('product_id', product!.id)
+        .eq('is_approved', true)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      return data as Review[];
+    },
+    enabled: !!product?.id,
+  });
+
+  // Fetch category
+  const { data: category } = useQuery({
+    queryKey: ['category', product?.category_id],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('name_bn, slug')
+        .eq('id', product!.category_id!)
+        .single();
+      
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!product?.category_id,
+  });
+
+  // Submit review mutation
+  const submitReviewMutation = useMutation({
+    mutationFn: async () => {
+      const { error } = await supabase
+        .from('reviews')
+        .insert({
+          product_id: product!.id,
+          customer_name: reviewName,
+          rating: reviewRating,
+          comment: reviewComment || null,
+          is_approved: false,
+        });
+      
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      toast({
+        title: "রিভিউ জমা হয়েছে",
+        description: "আপনার রিভিউ অনুমোদনের পর প্রকাশিত হবে।",
+      });
+      setReviewName("");
+      setReviewRating(5);
+      setReviewComment("");
+      queryClient.invalidateQueries({ queryKey: ['product-reviews', product?.id] });
+    },
+    onError: () => {
+      toast({
+        title: "ত্রুটি",
+        description: "রিভিউ জমা দিতে সমস্যা হয়েছে।",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Set default variant when variants load
+  useEffect(() => {
+    if (variants.length > 0 && !selectedVariant) {
+      const defaultVariant = variants.find((v) => v.is_default) || variants[0];
+      setSelectedVariant(defaultVariant);
+    }
+  }, [variants, selectedVariant]);
+
+  if (productLoading) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <TopNotificationBar />
+        <Header cartCount={getItemCount()} />
+        <main className="flex-1 py-6">
+          <div className="container">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12">
+              <Skeleton className="aspect-square rounded-2xl" />
+              <div className="space-y-4">
+                <Skeleton className="h-10 w-3/4" />
+                <Skeleton className="h-6 w-1/4" />
+                <Skeleton className="h-12 w-1/3" />
+                <Skeleton className="h-24 w-full" />
+              </div>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="min-h-screen flex flex-col">
+        <TopNotificationBar />
+        <Header cartCount={getItemCount()} />
+        <main className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-foreground mb-2">পণ্য পাওয়া যায়নি</h1>
+            <p className="text-muted-foreground mb-4">এই পণ্যটি বর্তমানে পাওয়া যাচ্ছে না।</p>
+            <Link to="/shop">
+              <Button>কেনাকাটা করুন</Button>
+            </Link>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
 
   const currentPrice = selectedVariant?.sale_price || selectedVariant?.price || product.sale_price || product.base_price;
   const originalPrice = selectedVariant?.price || product.base_price;
   const hasDiscount = selectedVariant?.sale_price || product.sale_price;
   const discountPercentage = hasDiscount ? Math.round(((originalPrice - currentPrice) / originalPrice) * 100) : 0;
-  const stockQuantity = selectedVariant?.stock_quantity || product.stock_quantity;
+  const stockQuantity = selectedVariant?.stock_quantity || product.stock_quantity || 0;
   const isOutOfStock = stockQuantity <= 0;
+  const images = product.images || ["https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=600&h=600&fit=crop"];
 
   const formatPrice = (price: number) => `৳${price.toLocaleString("bn-BD")}`;
 
@@ -94,7 +240,7 @@ const ProductDetail = () => {
       variantId: selectedVariant?.id,
       name_bn: product.name_bn,
       variant_name_bn: selectedVariant?.name_bn,
-      image_url: product.images[0],
+      image_url: images[0],
       price: currentPrice,
       quantity: quantity,
       stock_quantity: stockQuantity,
@@ -103,7 +249,7 @@ const ProductDetail = () => {
     setAddedItem({
       name_bn: product.name_bn,
       variant_name_bn: selectedVariant?.name_bn,
-      image_url: product.images[0],
+      image_url: images[0],
       price: currentPrice,
       quantity: quantity,
     });
@@ -111,12 +257,30 @@ const ProductDetail = () => {
   };
 
   const nextImage = () => {
-    setSelectedImageIndex((prev) => (prev + 1) % product.images.length);
+    setSelectedImageIndex((prev) => (prev + 1) % images.length);
   };
 
   const prevImage = () => {
-    setSelectedImageIndex((prev) => (prev - 1 + product.images.length) % product.images.length);
+    setSelectedImageIndex((prev) => (prev - 1 + images.length) % images.length);
   };
+
+  const handleSubmitReview = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!reviewName.trim()) {
+      toast({
+        title: "নাম দিন",
+        description: "আপনার নাম লিখুন।",
+        variant: "destructive",
+      });
+      return;
+    }
+    submitReviewMutation.mutate();
+  };
+
+  // Calculate average rating
+  const avgRating = reviews.length > 0 
+    ? reviews.reduce((acc, r) => acc + r.rating, 0) / reviews.length 
+    : 0;
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -129,10 +293,14 @@ const ProductDetail = () => {
           <nav className="flex items-center gap-2 text-sm text-muted-foreground mb-6">
             <Link to="/" className="hover:text-primary">হোম</Link>
             <span>/</span>
-            <Link to={`/category/${product.category.slug}`} className="hover:text-primary">
-              {product.category.name_bn}
-            </Link>
-            <span>/</span>
+            {category && (
+              <>
+                <Link to={`/category/${category.slug}`} className="hover:text-primary">
+                  {category.name_bn}
+                </Link>
+                <span>/</span>
+              </>
+            )}
             <span className="text-foreground">{product.name_bn}</span>
           </nav>
 
@@ -141,12 +309,12 @@ const ProductDetail = () => {
             <div className="space-y-4">
               <div className="relative aspect-square rounded-2xl overflow-hidden bg-muted">
                 <img
-                  src={product.images[selectedImageIndex]}
+                  src={images[selectedImageIndex]}
                   alt={product.name_bn}
                   className="w-full h-full object-cover"
                 />
                 
-                {product.images.length > 1 && (
+                {images.length > 1 && (
                   <>
                     <button
                       onClick={prevImage}
@@ -177,9 +345,9 @@ const ProductDetail = () => {
               </div>
 
               {/* Thumbnails */}
-              {product.images.length > 1 && (
+              {images.length > 1 && (
                 <div className="flex gap-3">
-                  {product.images.map((img, idx) => (
+                  {images.map((img, idx) => (
                     <button
                       key={idx}
                       onClick={() => setSelectedImageIndex(idx)}
@@ -208,16 +376,16 @@ const ProductDetail = () => {
                       <Star
                         key={i}
                         className={`h-4 w-4 ${
-                          i < Math.floor(product.rating)
+                          i < Math.floor(avgRating)
                             ? "fill-yellow-400 text-yellow-400"
                             : "text-muted"
                         }`}
                       />
                     ))}
                   </div>
-                  <span className="text-sm font-medium">{product.rating}</span>
+                  <span className="text-sm font-medium">{avgRating.toFixed(1)}</span>
                   <span className="text-sm text-muted-foreground">
-                    ({product.reviews_count} রিভিউ)
+                    ({reviews.length} রিভিউ)
                   </span>
                 </div>
               </div>
@@ -235,24 +403,24 @@ const ProductDetail = () => {
               </div>
 
               {/* Variants */}
-              {product.variants.length > 0 && (
+              {variants.length > 0 && (
                 <div className="space-y-3">
                   <label className="text-sm font-medium text-foreground">
                     পরিমাণ বেছে নিন
                   </label>
                   <div className="flex flex-wrap gap-2">
-                    {product.variants.map((variant) => (
+                    {variants.map((variant) => (
                       <button
                         key={variant.id}
                         onClick={() => {
                           setSelectedVariant(variant);
                           setQuantity(1);
                         }}
-                        disabled={variant.stock_quantity <= 0}
+                        disabled={(variant.stock_quantity || 0) <= 0}
                         className={`px-4 py-2 rounded-lg border text-sm font-medium transition-colors ${
                           selectedVariant?.id === variant.id
                             ? "border-primary bg-primary text-primary-foreground"
-                            : variant.stock_quantity <= 0
+                            : (variant.stock_quantity || 0) <= 0
                             ? "border-border bg-muted text-muted-foreground cursor-not-allowed"
                             : "border-border hover:border-primary"
                         }`}
@@ -369,36 +537,98 @@ const ProductDetail = () => {
                   value="reviews"
                   className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent px-6 py-3"
                 >
-                  রিভিউ ({product.reviews_count})
+                  রিভিউ ({reviews.length})
                 </TabsTrigger>
               </TabsList>
               
               <TabsContent value="description" className="mt-6">
                 <div className="prose max-w-none">
                   <p className="text-foreground leading-relaxed">
-                    {product.description_bn}
+                    {product.description_bn || "এই পণ্যের বিস্তারিত বিবরণ শীঘ্রই আসছে।"}
                   </p>
                 </div>
               </TabsContent>
               
               <TabsContent value="reviews" className="mt-6">
-                <div className="space-y-6">
-                  {reviews.map((review) => (
-                    <div key={review.id} className="bg-card rounded-xl p-5 border border-border">
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-                            <span className="text-primary font-bold">
-                              {review.customer_name.charAt(0)}
-                            </span>
-                          </div>
-                          <div>
-                            <p className="font-medium text-foreground">{review.customer_name}</p>
+                <div className="space-y-8">
+                  {/* Review Form */}
+                  <div className="bg-card rounded-xl p-6 border border-border">
+                    <h3 className="text-lg font-semibold text-foreground mb-4">রিভিউ দিন</h3>
+                    <form onSubmit={handleSubmitReview} className="space-y-4">
+                      <div>
+                        <label className="text-sm font-medium text-foreground mb-2 block">আপনার নাম</label>
+                        <Input
+                          placeholder="আপনার নাম লিখুন"
+                          value={reviewName}
+                          onChange={(e) => setReviewName(e.target.value)}
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-foreground mb-2 block">রেটিং</label>
+                        <div className="flex items-center gap-1">
+                          {Array.from({ length: 5 }).map((_, i) => (
+                            <button
+                              key={i}
+                              type="button"
+                              onClick={() => setReviewRating(i + 1)}
+                              className="p-1"
+                            >
+                              <Star
+                                className={`h-6 w-6 ${
+                                  i < reviewRating
+                                    ? "fill-yellow-400 text-yellow-400"
+                                    : "text-muted"
+                                }`}
+                              />
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-foreground mb-2 block">মন্তব্য (ঐচ্ছিক)</label>
+                        <Textarea
+                          placeholder="আপনার অভিজ্ঞতা শেয়ার করুন..."
+                          value={reviewComment}
+                          onChange={(e) => setReviewComment(e.target.value)}
+                          rows={3}
+                        />
+                      </div>
+                      <Button type="submit" disabled={submitReviewMutation.isPending}>
+                        <Send className="h-4 w-4 mr-2" />
+                        {submitReviewMutation.isPending ? "জমা হচ্ছে..." : "রিভিউ জমা দিন"}
+                      </Button>
+                    </form>
+                  </div>
+
+                  {/* Existing Reviews */}
+                  {reviews.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">
+                      এই পণ্যের কোনো রিভিউ নেই। প্রথম রিভিউ দিন!
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {reviews.map((review) => (
+                        <div key={review.id} className="bg-card rounded-xl p-5 border border-border">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-3">
+                              <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+                                <span className="text-primary font-bold">
+                                  {review.customer_name.charAt(0)}
+                                </span>
+                              </div>
+                              <div>
+                                <p className="font-medium text-foreground">{review.customer_name}</p>
+                                <p className="text-xs text-muted-foreground">
+                                  {new Date(review.created_at).toLocaleDateString("bn-BD")}
+                                </p>
+                              </div>
+                            </div>
                             <div className="flex items-center gap-1">
                               {Array.from({ length: 5 }).map((_, i) => (
                                 <Star
                                   key={i}
-                                  className={`h-3 w-3 ${
+                                  className={`h-4 w-4 ${
                                     i < review.rating
                                       ? "fill-yellow-400 text-yellow-400"
                                       : "text-muted"
@@ -407,12 +637,13 @@ const ProductDetail = () => {
                               ))}
                             </div>
                           </div>
+                          {review.comment && (
+                            <p className="text-muted-foreground">{review.comment}</p>
+                          )}
                         </div>
-                        <span className="text-xs text-muted-foreground">{review.created_at}</span>
-                      </div>
-                      <p className="text-foreground">{review.comment}</p>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
               </TabsContent>
             </Tabs>

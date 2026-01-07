@@ -1,7 +1,9 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ShoppingCart, Star } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { useCart } from "@/contexts/CartContext";
+import { useToast } from "@/hooks/use-toast";
 
 interface ProductCardProps {
   id: string;
@@ -30,6 +32,10 @@ const ProductCard = ({
   stock_quantity = 0,
   onAddToCart,
 }: ProductCardProps) => {
+  const navigate = useNavigate();
+  const { addItem } = useCart();
+  const { toast } = useToast();
+  
   const hasDiscount = sale_price && sale_price < base_price;
   const discountPercentage = hasDiscount
     ? Math.round(((base_price - sale_price) / base_price) * 100)
@@ -38,6 +44,30 @@ const ProductCard = ({
 
   const formatPrice = (price: number) => {
     return `৳${price.toLocaleString("bn-BD")}`;
+  };
+
+  const handleAddToCart = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (isOutOfStock) return;
+
+    addItem({
+      productId: id,
+      name_bn: name_bn,
+      image_url: image_url || "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=300&h=300&fit=crop",
+      price: sale_price || base_price,
+      quantity: 1,
+      stock_quantity: stock_quantity,
+    });
+
+    toast({
+      title: "কার্টে যোগ হয়েছে",
+      description: name_bn,
+    });
+
+    // Navigate to cart page
+    navigate("/cart");
   };
 
   return (
@@ -108,10 +138,7 @@ const ProductCard = ({
             size="icon"
             variant="outline"
             className="h-9 w-9 rounded-full border-primary text-primary hover:bg-primary hover:text-primary-foreground"
-            onClick={(e) => {
-              e.preventDefault();
-              onAddToCart?.();
-            }}
+            onClick={handleAddToCart}
             disabled={isOutOfStock}
           >
             <ShoppingCart className="h-4 w-4" />

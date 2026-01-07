@@ -139,7 +139,7 @@ const Footer = () => {
         <div className="container py-4">
           <div className="flex flex-col sm:flex-row items-center justify-between gap-2 text-sm text-muted-foreground">
             <p>© {new Date().getFullYear()} অর্গানিক স্টোর। সর্বস্বত্ব সংরক্ষিত।</p>
-            <p className="text-xs">বাংলাদেশে ❤️ দিয়ে তৈরি</p>
+            <p className="text-xs">ডেভলাপার - ইফতিকার রহমান</p>
           </div>
         </div>
       </div>

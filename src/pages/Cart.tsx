@@ -35,7 +35,7 @@ const Cart = () => {
             </div>
             <h1 className="text-2xl font-bold text-foreground">আপনার কার্ট খালি</h1>
             <p className="text-muted-foreground">এখনো কোনো পণ্য যোগ করা হয়নি</p>
-            <Link to="/products">
+            <Link to="/shop">
               <Button className="mt-4">
                 কেনাকাটা শুরু করুন
                 <ArrowRight className="h-4 w-4 ml-2" />
