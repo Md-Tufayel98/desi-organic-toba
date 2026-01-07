@@ -14,7 +14,7 @@ import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import MiniCartPopup from "@/components/cart/MiniCartPopup";
 import { Skeleton } from "@/components/ui/skeleton";
-import { trackViewContent, trackAddToCart } from "@/lib/facebook-pixel";
+import { trackViewContent, trackAddToCart } from "@/lib/tracking";
 
 interface ProductVariant {
   id: string;

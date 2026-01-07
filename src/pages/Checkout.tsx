@@ -19,7 +19,7 @@ import { supabase } from "@/integrations/supabase/client";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import { useQuery } from "@tanstack/react-query";
-import { trackInitiateCheckout, trackPurchase } from "@/lib/facebook-pixel";
+import { trackPurchase } from "@/lib/tracking";
 
 const checkoutSchema = z.object({
   fullName: z.string().min(2, "নাম দিন"),
@@ -101,18 +101,6 @@ const Checkout = () => {
     }
   }, [deliveryZones, selectedZone]);
 
-  // Track InitiateCheckout when page loads
-  useEffect(() => {
-    if (items.length > 0) {
-      trackInitiateCheckout({
-        content_ids: items.map(item => item.productId),
-        contents: items.map(item => ({ id: item.productId, quantity: item.quantity })),
-        num_items: items.reduce((sum, item) => sum + item.quantity, 0),
-        value: getSubtotal(),
-        currency: 'BDT',
-      });
-    }
-  }, []);
 
   const selectedZoneData = deliveryZones.find((z) => z.id === selectedZone);
   const subtotal = getSubtotal();
@@ -302,13 +290,19 @@ const Checkout = () => {
       // Mark incomplete order as converted and clear cart
       await markAsConverted();
       
-      // Track Purchase event
+      // Track Purchase event with hashed customer data
       trackPurchase({
         content_ids: items.map(item => item.productId),
-        contents: items.map(item => ({ id: item.productId, quantity: item.quantity })),
+        contents: items.map(item => ({ id: item.productId, quantity: item.quantity, item_price: item.price })),
         num_items: items.reduce((sum, item) => sum + item.quantity, 0),
         value: total,
         currency: 'BDT',
+        customer_name: data.fullName,
+        customer_phone: data.phone,
+        customer_email: data.email || undefined,
+        customer_address: data.address,
+        customer_city: data.city,
+        order_id: order.order_number,
       });
 
       clearCart();

@@ -7,7 +7,7 @@ import { useCart } from "@/contexts/CartContext";
 import { supabase } from "@/integrations/supabase/client";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
-import { trackPurchase } from "@/lib/facebook-pixel";
+import { trackPurchase } from "@/lib/tracking";
 
 const PaymentSuccess = () => {
   const [searchParams] = useSearchParams();
@@ -104,13 +104,19 @@ const PaymentSuccess = () => {
                 }
               }
               
-              // Track Purchase event
+              // Track Purchase event with hashed customer data
               trackPurchase({
                 content_ids: orderData.items.map((item: any) => item.productId),
-                contents: orderData.items.map((item: any) => ({ id: item.productId, quantity: item.quantity })),
+                contents: orderData.items.map((item: any) => ({ id: item.productId, quantity: item.quantity, item_price: item.price })),
                 num_items: orderData.items.reduce((sum: number, item: any) => sum + item.quantity, 0),
                 value: orderData.totalAmount,
                 currency: 'BDT',
+                customer_name: orderData.customerName,
+                customer_phone: orderData.customerPhone,
+                customer_email: orderData.customerEmail || undefined,
+                customer_address: orderData.shippingAddress,
+                customer_city: orderData.shippingCity,
+                order_id: order.order_number,
               });
 
               // Clear pending order and cart

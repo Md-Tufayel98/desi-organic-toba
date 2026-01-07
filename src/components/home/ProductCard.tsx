@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useCart } from "@/contexts/CartContext";
 import { useToast } from "@/hooks/use-toast";
-import { trackAddToCart } from "@/lib/facebook-pixel";
+import { trackAddToCart } from "@/lib/tracking";
 
 interface ProductCardProps {
   id: string;
