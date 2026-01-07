@@ -5,13 +5,12 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
-import { useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { bn } from "date-fns/locale";
 
 const AdminChat = () => {
   const [sessions, setSessions] = useState<any[]>([]);
-  const [selectedSession, setSelectedSession] = useState<string | null>(null);
+  const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
   const [messages, setMessages] = useState<any[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -28,44 +27,44 @@ const AdminChat = () => {
     };
     fetchSessions();
 
-    // Subscribe to new sessions
+    // Subscribe to session changes
     const channel = supabase
-      .channel("chat-sessions")
+      .channel("admin-chat-sessions")
       .on("postgres_changes", { event: "*", schema: "public", table: "chat_sessions" }, fetchSessions)
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
   }, []);
 
-  // Fetch messages for selected session
+  // Fetch messages for selected session (using session_id string, not id)
   useEffect(() => {
-    if (!selectedSession) return;
+    if (!selectedSessionId) return;
 
     const fetchMessages = async () => {
       const { data } = await supabase
         .from("chat_messages")
         .select("*")
-        .eq("session_id", selectedSession)
+        .eq("session_id", selectedSessionId)
         .order("created_at", { ascending: true });
       setMessages(data || []);
     };
     fetchMessages();
 
-    // Subscribe to new messages
+    // Subscribe to new messages using session_id
     const channel = supabase
-      .channel(`chat-messages-${selectedSession}`)
+      .channel(`admin-chat-messages-${selectedSessionId}`)
       .on("postgres_changes", { 
         event: "INSERT", 
         schema: "public", 
         table: "chat_messages",
-        filter: `session_id=eq.${selectedSession}`
+        filter: `session_id=eq.${selectedSessionId}`
       }, (payload) => {
         setMessages(prev => [...prev, payload.new]);
       })
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
-  }, [selectedSession]);
+  }, [selectedSessionId]);
 
   // Scroll to bottom on new messages
   useEffect(() => {
@@ -73,19 +72,33 @@ const AdminChat = () => {
   }, [messages]);
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedSession) return;
+    if (!newMessage.trim() || !selectedSessionId) return;
     setLoading(true);
 
-    await supabase.from("chat_messages").insert({
-      session_id: selectedSession,
-      sender_type: "admin",
-      message: newMessage,
-    });
+    try {
+      // Insert message with session_id (the custom string identifier)
+      await supabase.from("chat_messages").insert({
+        session_id: selectedSessionId,
+        sender_type: "admin",
+        message: newMessage,
+      });
 
-    await supabase.from("chat_sessions").update({ last_message_at: new Date().toISOString() }).eq("id", selectedSession);
+      // Update session's last_message_at using session_id
+      await supabase
+        .from("chat_sessions")
+        .update({ last_message_at: new Date().toISOString() })
+        .eq("session_id", selectedSessionId);
 
-    setNewMessage("");
-    setLoading(false);
+      setNewMessage("");
+    } catch (error) {
+      console.error("Error sending message:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getSelectedSession = () => {
+    return sessions.find(s => s.session_id === selectedSessionId);
   };
 
   return (
@@ -112,15 +125,20 @@ const AdminChat = () => {
                 sessions.map((session) => (
                   <div
                     key={session.id}
-                    onClick={() => setSelectedSession(session.id)}
+                    onClick={() => setSelectedSessionId(session.session_id)}
                     className={`p-4 border-b cursor-pointer hover:bg-muted/50 transition-colors ${
-                      selectedSession === session.id ? "bg-muted" : ""
+                      selectedSessionId === session.session_id ? "bg-muted" : ""
                     }`}
                   >
                     <p className="font-medium">{session.customer_name || "অজানা"}</p>
-                    <p className="text-sm text-muted-foreground">{session.customer_phone || session.session_id?.slice(0, 8)}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {session.customer_phone || session.session_id?.slice(0, 15) + "..."}
+                    </p>
                     <p className="text-xs text-muted-foreground mt-1">
-                      {format(new Date(session.last_message_at), "dd MMM, hh:mm a", { locale: bn })}
+                      {session.last_message_at 
+                        ? format(new Date(session.last_message_at), "dd MMM, hh:mm a", { locale: bn })
+                        : "—"
+                      }
                     </p>
                   </div>
                 ))
@@ -133,14 +151,14 @@ const AdminChat = () => {
         <Card className="lg:col-span-2 flex flex-col">
           <CardHeader className="border-b">
             <CardTitle>
-              {selectedSession
-                ? sessions.find((s) => s.id === selectedSession)?.customer_name || "চ্যাট"
+              {selectedSessionId
+                ? getSelectedSession()?.customer_name || "চ্যাট"
                 : "একটি চ্যাট সিলেক্ট করুন"}
             </CardTitle>
           </CardHeader>
           <CardContent className="flex-1 flex flex-col p-0">
             <ScrollArea className="flex-1 p-4">
-              {!selectedSession ? (
+              {!selectedSessionId ? (
                 <div className="h-full flex items-center justify-center text-muted-foreground">
                   বাম দিক থেকে একটি চ্যাট সিলেক্ট করুন
                 </div>
@@ -173,7 +191,7 @@ const AdminChat = () => {
                 </div>
               )}
             </ScrollArea>
-            {selectedSession && (
+            {selectedSessionId && (
               <div className="p-4 border-t flex gap-2">
                 <Input
                   placeholder="মেসেজ লিখুন..."

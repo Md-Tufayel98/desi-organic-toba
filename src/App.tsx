@@ -45,6 +45,7 @@ import AdminIncompleteOrders from "./pages/admin/IncompleteOrders";
 import AdminRecoveryAnalytics from "./pages/admin/RecoveryAnalytics";
 import AdminContent from "./pages/admin/Content";
 import AdminPayments from "./pages/admin/Payments";
+import AdminNewProduct from "./pages/admin/NewProduct";
 import LiveChatWidget from "./components/chat/LiveChatWidget";
 
 const queryClient = new QueryClient();
@@ -103,7 +104,7 @@ const App = () => (
                 <Route path="recovery-analytics" element={<AdminRecoveryAnalytics />} />
                 <Route path="payments" element={<AdminPayments />} />
                 <Route path="content" element={<AdminContent />} />
-                <Route path="products/new" element={<AdminProducts />} />
+                <Route path="products/new" element={<AdminNewProduct />} />
               </Route>
 
               <Route path="*" element={<NotFound />} />
