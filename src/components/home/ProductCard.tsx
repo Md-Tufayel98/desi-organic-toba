@@ -121,8 +121,8 @@ const ProductCard = ({
           </h3>
         </Link>
 
-        {/* Price & Cart */}
-        <div className="flex items-center justify-between gap-2">
+        {/* Price & Cart - Desktop */}
+        <div className="hidden md:flex items-center justify-between gap-2">
           <div className="flex items-baseline gap-2">
             <span className="text-lg font-bold text-primary">
               {formatPrice(sale_price || base_price)}
@@ -142,6 +142,30 @@ const ProductCard = ({
             disabled={isOutOfStock}
           >
             <ShoppingCart className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Price & Cart - Mobile */}
+        <div className="md:hidden space-y-3">
+          <div className="flex items-baseline gap-2">
+            <span className="text-lg font-bold text-primary">
+              {formatPrice(sale_price || base_price)}
+            </span>
+            {hasDiscount && (
+              <span className="text-sm text-muted-foreground line-through">
+                {formatPrice(base_price)}
+              </span>
+            )}
+          </div>
+
+          <Button
+            variant="outline"
+            className="w-full border-primary text-primary hover:bg-primary hover:text-primary-foreground"
+            onClick={handleAddToCart}
+            disabled={isOutOfStock}
+          >
+            <ShoppingCart className="h-4 w-4 mr-2" />
+            কার্টে যোগ করুন
           </Button>
         </div>
       </div>
