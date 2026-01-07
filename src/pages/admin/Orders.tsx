@@ -155,7 +155,7 @@ const AdminOrders = () => {
           <p className="text-muted-foreground">সকল অর্ডার দেখুন এবং পরিচালনা করুন ({orders?.length || 0}টি)</p>
         </div>
         <div className="flex items-center gap-3">
-          {steadfastBalance !== undefined && (
+          {steadfastBalance !== undefined && steadfastBalance !== null && (
             <div className="flex items-center gap-2 px-3 py-2 bg-muted rounded-lg">
               <Wallet className="h-4 w-4 text-muted-foreground" />
               <span className="text-sm font-medium">৳{steadfastBalance.toLocaleString()}</span>

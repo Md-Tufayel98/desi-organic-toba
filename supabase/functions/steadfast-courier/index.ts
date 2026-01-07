@@ -19,7 +19,10 @@ serve(async (req) => {
     const secretKey = Deno.env.get("STEADFAST_SECRET_KEY");
 
     if (!apiKey || !secretKey) {
-      console.error("Steadfast API credentials not configured");
+      console.error("Steadfast API credentials not configured", { 
+        hasApiKey: !!apiKey, 
+        hasSecretKey: !!secretKey 
+      });
       return new Response(
         JSON.stringify({ error: "Steadfast API credentials not configured" }),
         { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -33,6 +36,19 @@ serve(async (req) => {
       "Api-Key": apiKey,
       "Secret-Key": secretKey,
       "Content-Type": "application/json",
+    };
+
+    // Helper function to safely parse API response
+    const parseApiResponse = async (response: Response, endpoint: string) => {
+      const text = await response.text();
+      console.log(`Steadfast ${endpoint} raw response (status ${response.status}):`, text.substring(0, 500));
+      
+      try {
+        return JSON.parse(text);
+      } catch {
+        console.error(`Failed to parse Steadfast response as JSON. Got HTML/text response.`);
+        throw new Error(`Steadfast API returned invalid response. Status: ${response.status}`);
+      }
     };
 
     // Create Supabase client
@@ -78,7 +94,7 @@ serve(async (req) => {
           body: JSON.stringify(payload),
         });
 
-        const result = await response.json();
+        const result = await parseApiResponse(response, "create_order");
         console.log("Steadfast create response:", result);
 
         if (result.status === 200 && result.consignment) {
@@ -103,7 +119,7 @@ serve(async (req) => {
             status: "shipped",
             courier_name: "Steadfast Courier",
             tracking_number: result.consignment.consignment_id,
-            tracking_url: `https://portal.steadfast.com.bd/consignment/tracking/${result.consignment.consignment_id}`,
+            tracking_url: `https://steadfast.com.bd/t/${result.consignment.tracking_code}`,
             notes: `Steadfast consignment created. Invoice: ${order.order_number}`,
           });
 
@@ -148,7 +164,7 @@ serve(async (req) => {
           );
         }
 
-        const result = await response.json();
+        const result = await parseApiResponse(response, "check-status");
         console.log("Steadfast status response:", result);
 
         if (result.status === 200) {
@@ -169,7 +185,7 @@ serve(async (req) => {
           headers: steadfastHeaders,
         });
 
-        const result = await response.json();
+        const result = await parseApiResponse(response, "get_balance");
         console.log("Steadfast balance response:", result);
 
         if (result.status === 200) {
