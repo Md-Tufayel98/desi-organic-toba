@@ -28,8 +28,8 @@ export const initFacebookPixel = () => {
 
   (window as any).fbq('init', FB_PIXEL_ID);
   
-  // Add test event code for testing (remove in production)
-  // (window as any).fbq('set', 'testEventCode', 'TEST62994');
+  // Fire PageView immediately after init
+  (window as any).fbq('track', 'PageView');
 };
 
 // Track PageView
