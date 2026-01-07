@@ -9,6 +9,7 @@ import {
   ExternalLink,
   Loader2,
   Wallet,
+  ShieldCheck,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,8 +37,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { useOrders, useUpdateOrder } from "@/hooks/useAdminData";
 import { useSendToSteadfast, useSteadfastBalance, useCheckSteadfastStatus } from "@/hooks/useSteadfast";
+import { useCourierCheck } from "@/hooks/useBDCourier";
 import { OrderDialog } from "@/components/admin/dialogs/OrderDialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { format } from "date-fns";
@@ -52,11 +60,29 @@ const AdminOrders = () => {
   const [selectedOrders, setSelectedOrders] = useState<Set<string>>(new Set());
   const [isBulkSending, setIsBulkSending] = useState(false);
 
+  const [fraudCheckResult, setFraudCheckResult] = useState<any>(null);
+  const [fraudCheckPhone, setFraudCheckPhone] = useState("");
+  const [fraudDialogOpen, setFraudDialogOpen] = useState(false);
+
   const { data: orders, isLoading } = useOrders();
   const updateOrder = useUpdateOrder();
   const sendToSteadfast = useSendToSteadfast();
   const { data: steadfastBalance } = useSteadfastBalance();
   const checkStatus = useCheckSteadfastStatus();
+  const courierCheck = useCourierCheck();
+
+  const handleFraudCheck = async (phone: string) => {
+    setFraudCheckPhone(phone);
+    setFraudCheckResult(null);
+    setFraudDialogOpen(true);
+    
+    try {
+      const result = await courierCheck.mutateAsync(phone);
+      setFraudCheckResult(result);
+    } catch (error) {
+      // Error is handled in the hook
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     const config: Record<string, { label: string; className: string }> = {
@@ -331,9 +357,20 @@ const AdminOrders = () => {
                     </TableCell>
                     <TableCell className="font-medium font-mono">{order.order_number}</TableCell>
                     <TableCell>
-                      <div>
-                        <p className="font-medium">{order.customer_name}</p>
-                        <p className="text-sm text-muted-foreground">{order.customer_phone}</p>
+                      <div className="flex items-center gap-2">
+                        <div>
+                          <p className="font-medium">{order.customer_name}</p>
+                          <p className="text-sm text-muted-foreground">{order.customer_phone}</p>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={() => handleFraudCheck(order.customer_phone)}
+                          title="ফ্রড চেক"
+                        >
+                          <ShieldCheck className="h-4 w-4 text-orange-500" />
+                        </Button>
                       </div>
                     </TableCell>
                     <TableCell className="text-center">{order.order_items?.[0]?.count || 0}টি</TableCell>
@@ -463,6 +500,75 @@ const AdminOrders = () => {
         onOpenChange={setDialogOpen}
         order={editOrder}
       />
+
+      {/* Fraud Check Dialog */}
+      <Dialog open={fraudDialogOpen} onOpenChange={setFraudDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-orange-500" />
+              ফ্রড চেক রেজাল্ট
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              ফোন নম্বর: <span className="font-mono font-medium text-foreground">{fraudCheckPhone}</span>
+            </p>
+            
+            {courierCheck.isPending && (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              </div>
+            )}
+
+            {fraudCheckResult && (
+              <div className="space-y-3">
+                {fraudCheckResult.status === "success" && fraudCheckResult.data?.couriers?.length > 0 ? (
+                  <>
+                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                      <p className="text-sm font-medium text-red-700">
+                        ⚠️ {fraudCheckResult.data.couriers.length}টি কুরিয়ার এ ইতিহাস পাওয়া গেছে
+                      </p>
+                    </div>
+                    <div className="space-y-2">
+                      {fraudCheckResult.data.couriers.map((courier: any, index: number) => (
+                        <div 
+                          key={index} 
+                          className="flex items-center gap-3 p-3 bg-muted rounded-lg"
+                        >
+                          {courier.logo && (
+                            <img 
+                              src={courier.logo} 
+                              alt={courier.name} 
+                              className="h-8 w-8 object-contain"
+                            />
+                          )}
+                          <div>
+                            <p className="font-medium">{courier.name}</p>
+                            <p className="text-xs text-muted-foreground capitalize">{courier.status}</p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                ) : fraudCheckResult.status === "success" ? (
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-sm font-medium text-green-700">
+                      ✅ এই নম্বরে কোনো কুরিয়ার ইতিহাস পাওয়া যায়নি
+                    </p>
+                  </div>
+                ) : (
+                  <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <p className="text-sm text-yellow-700">
+                      চেক করতে সমস্যা হয়েছে
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
