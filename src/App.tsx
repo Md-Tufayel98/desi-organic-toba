@@ -13,6 +13,7 @@ import ProductDetail from "./pages/ProductDetail";
 import Cart from "./pages/Cart";
 import Checkout from "./pages/Checkout";
 import OrderConfirmation from "./pages/OrderConfirmation";
+import PaymentSuccess from "./pages/PaymentSuccess";
 import Auth from "./pages/Auth";
 import Account from "./pages/Account";
 import NotFound from "./pages/NotFound";
@@ -49,6 +50,7 @@ const App = () => (
               <Route path="/cart" element={<Cart />} />
               <Route path="/checkout" element={<Checkout />} />
               <Route path="/order-confirmation/:orderNumber" element={<OrderConfirmation />} />
+              <Route path="/payment-success" element={<PaymentSuccess />} />
               <Route path="/auth" element={<Auth />} />
               <Route path="/account" element={<Account />} />
 

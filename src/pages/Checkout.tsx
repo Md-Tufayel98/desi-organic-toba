@@ -1,20 +1,24 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { MapPin, Truck, CreditCard, Tag, ArrowLeft, Check } from "lucide-react";
+import { MapPin, Truck, CreditCard, Tag, ArrowLeft, Check, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { useCart } from "@/contexts/CartContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useUddoktaPay } from "@/hooks/useUddoktaPay";
+import { supabase } from "@/integrations/supabase/client";
 import TopNotificationBar from "@/components/layout/TopNotificationBar";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
+import { useQuery } from "@tanstack/react-query";
 
 const checkoutSchema = z.object({
   fullName: z.string().min(2, "নাম দিন"),
@@ -40,27 +44,46 @@ const Checkout = () => {
   const { items, getItemCount, getSubtotal, getQuantityDiscount, clearCart } = useCart();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { createCharge, isLoading: paymentLoading } = useUddoktaPay("client");
   
-  const [selectedZone, setSelectedZone] = useState<string>("dhaka");
+  const [selectedZone, setSelectedZone] = useState<string>("");
   const [paymentMethod, setPaymentMethod] = useState<string>("cod");
   const [couponCode, setCouponCode] = useState("");
   const [couponApplied, setCouponApplied] = useState(false);
   const [couponDiscount, setCouponDiscount] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [useServerSide, setUseServerSide] = useState(false);
 
   const {
     register,
     handleSubmit,
     formState: { errors },
+    watch,
   } = useForm<CheckoutFormData>({
     resolver: zodResolver(checkoutSchema),
   });
 
-  // Demo delivery zones
-  const deliveryZones: DeliveryZone[] = [
-    { id: "dhaka", name_bn: "ঢাকা সিটি", charge: 60, estimated_days: 2 },
-    { id: "outside", name_bn: "ঢাকার বাইরে", charge: 120, estimated_days: 4 },
-  ];
+  // Fetch delivery zones from database
+  const { data: deliveryZones = [] } = useQuery({
+    queryKey: ["delivery-zones-checkout"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("delivery_zones")
+        .select("id, name_bn, charge, estimated_days")
+        .eq("is_active", true)
+        .order("charge", { ascending: true });
+      
+      if (error) throw error;
+      return data as DeliveryZone[];
+    },
+  });
+
+  // Set default zone when data loads
+  useEffect(() => {
+    if (deliveryZones.length > 0 && !selectedZone) {
+      setSelectedZone(deliveryZones[0].id);
+    }
+  }, [deliveryZones, selectedZone]);
 
   const selectedZoneData = deliveryZones.find((z) => z.id === selectedZone);
   const subtotal = getSubtotal();
@@ -72,20 +95,61 @@ const Checkout = () => {
 
   const formatPrice = (price: number) => `৳${price.toLocaleString("bn-BD")}`;
 
-  const applyCoupon = () => {
-    // Demo coupon logic
-    if (couponCode.toUpperCase() === "ORGANIC10") {
-      const discount = Math.round(subtotal * 0.1);
+  const applyCoupon = async () => {
+    try {
+      const { data: coupon, error } = await supabase
+        .from("coupons")
+        .select("*")
+        .eq("code", couponCode.toUpperCase())
+        .eq("is_active", true)
+        .maybeSingle();
+
+      if (error || !coupon) {
+        toast({
+          title: "অবৈধ কুপন",
+          description: "কুপন কোডটি সঠিক নয়",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Check validity
+      const now = new Date();
+      if (coupon.valid_from && new Date(coupon.valid_from) > now) {
+        toast({ title: "কুপন এখনো সক্রিয় হয়নি", variant: "destructive" });
+        return;
+      }
+      if (coupon.valid_until && new Date(coupon.valid_until) < now) {
+        toast({ title: "কুপনের মেয়াদ শেষ", variant: "destructive" });
+        return;
+      }
+      if (coupon.min_order_amount && subtotal < coupon.min_order_amount) {
+        toast({ 
+          title: `ন্যূনতম অর্ডার ${formatPrice(coupon.min_order_amount)} প্রয়োজন`, 
+          variant: "destructive" 
+        });
+        return;
+      }
+
+      let discount = 0;
+      if (coupon.discount_type === "percentage") {
+        discount = Math.round(subtotal * (coupon.discount_value / 100));
+        if (coupon.max_discount && discount > coupon.max_discount) {
+          discount = coupon.max_discount;
+        }
+      } else {
+        discount = coupon.discount_value;
+      }
+
       setCouponDiscount(discount);
       setCouponApplied(true);
       toast({
         title: "কুপন প্রয়োগ করা হয়েছে!",
-        description: `১০% ছাড়: ${formatPrice(discount)}`,
+        description: `ছাড়: ${formatPrice(discount)}`,
       });
-    } else {
+    } catch (error) {
       toast({
-        title: "অবৈধ কুপন",
-        description: "কুপন কোডটি সঠিক নয়",
+        title: "কুপন চেক করতে সমস্যা হয়েছে",
         variant: "destructive",
       });
     }
@@ -104,21 +168,119 @@ const Checkout = () => {
     setIsSubmitting(true);
 
     try {
-      // Simulate order creation
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // Handle UddoktaPay payment
+      if (paymentMethod === "uddoktapay") {
+        const paymentAmount = total;
+        
+        // Store pending order data
+        const pendingOrder = {
+          customerName: data.fullName,
+          customerPhone: data.phone,
+          customerEmail: data.email || null,
+          shippingAddress: data.address,
+          shippingCity: data.city,
+          shippingArea: data.area || null,
+          deliveryZoneId: selectedZone || null,
+          deliveryCharge,
+          subtotal,
+          discountAmount: totalDiscount,
+          totalAmount: total,
+          notes: data.notes || null,
+          couponCode: couponApplied ? couponCode : null,
+          userId: user?.id || null,
+          items: items.map(item => ({
+            productId: item.productId,
+            name: item.name_bn,
+            variantName: item.variant_name_bn || null,
+            quantity: item.quantity,
+            price: item.price,
+          })),
+        };
+        
+        localStorage.setItem("pending_order", JSON.stringify(pendingOrder));
 
-      const orderNumber = `ORD-${Date.now().toString().slice(-8)}`;
+        // Create payment charge
+        const result = await createCharge({
+          fullName: data.fullName,
+          email: data.email || "customer@example.com",
+          amount: paymentAmount,
+          orderId: `temp_${Date.now()}`,
+          userId: user?.id,
+          redirectUrl: `${window.location.origin}/payment-success`,
+          cancelUrl: `${window.location.origin}/checkout`,
+        });
+
+        if (result.success && result.payment_url) {
+          // Redirect to UddoktaPay payment page
+          window.location.href = result.payment_url;
+          return;
+        } else {
+          toast({
+            title: "পেমেন্ট তৈরি করতে সমস্যা হয়েছে",
+            description: result.message || "আবার চেষ্টা করুন",
+            variant: "destructive",
+          });
+          setIsSubmitting(false);
+          return;
+        }
+      }
+
+      // Handle COD and partial payment
+      const orderInsertData = {
+        customer_name: data.fullName,
+        customer_phone: data.phone,
+        customer_email: data.email || null,
+        shipping_address: data.address,
+        shipping_city: data.city,
+        shipping_area: data.area || null,
+        delivery_zone_id: selectedZone || null,
+        delivery_charge: deliveryCharge,
+        subtotal,
+        discount_amount: totalDiscount,
+        total_amount: total,
+        payment_method: (paymentMethod === "partial" ? "uddoktapay" : "cod") as "cod" | "uddoktapay" | "bkash" | "nagad",
+        payment_status: (paymentMethod === "partial" ? "partial" : "unpaid") as "unpaid" | "partial" | "paid" | "refunded",
+        partial_payment_amount: partialPayment || null,
+        order_status: "pending" as const,
+        notes: data.notes || null,
+        coupon_code: couponApplied ? couponCode : null,
+        user_id: user?.id || null,
+      };
+      
+      const { data: order, error } = await supabase
+        .from("orders")
+        .insert(orderInsertData as any)
+        .select("id, order_number")
+        .single();
+
+      if (error) throw error;
+
+      // Create order items
+      if (order) {
+        await supabase.from("order_items").insert(
+          items.map(item => ({
+            order_id: order.id,
+            product_id: item.productId,
+            product_name: item.name_bn,
+            variant_name: item.variant_name_bn || null,
+            quantity: item.quantity,
+            unit_price: item.price,
+            total_price: item.price * item.quantity,
+          }))
+        );
+      }
 
       // Clear cart and redirect to confirmation
       clearCart();
       
       toast({
         title: "অর্ডার সফল হয়েছে!",
-        description: `অর্ডার নম্বর: ${orderNumber}`,
+        description: `অর্ডার নম্বর: ${order.order_number}`,
       });
 
-      navigate(`/order-confirmation/${orderNumber}`);
+      navigate(`/order-confirmation/${order.order_number}`);
     } catch (error) {
+      console.error("Order error:", error);
       toast({
         title: "অর্ডার ব্যর্থ হয়েছে",
         description: "আবার চেষ্টা করুন",
@@ -137,7 +299,7 @@ const Checkout = () => {
         <main className="flex-1 flex items-center justify-center py-12">
           <div className="text-center space-y-4">
             <h1 className="text-2xl font-bold text-foreground">কার্ট খালি</h1>
-            <Link to="/products">
+            <Link to="/shop">
               <Button>কেনাকাটা করুন</Button>
             </Link>
           </div>
@@ -294,11 +456,22 @@ const Checkout = () => {
 
                 {/* Payment Method */}
                 <div className="bg-card rounded-xl p-6 border border-border">
-                  <div className="flex items-center gap-3 mb-6">
-                    <div className="w-10 h-10 rounded-full gradient-organic flex items-center justify-center">
-                      <CreditCard className="h-5 w-5 text-primary-foreground" />
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full gradient-organic flex items-center justify-center">
+                        <CreditCard className="h-5 w-5 text-primary-foreground" />
+                      </div>
+                      <h2 className="text-lg font-bold text-foreground">পেমেন্ট পদ্ধতি</h2>
                     </div>
-                    <h2 className="text-lg font-bold text-foreground">পেমেন্ট পদ্ধতি</h2>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Settings className="h-3 w-3" />
+                      <span>সার্ভার-সাইড</span>
+                      <Switch
+                        checked={useServerSide}
+                        onCheckedChange={setUseServerSide}
+                        className="scale-75"
+                      />
+                    </div>
                   </div>
 
                   <RadioGroup value={paymentMethod} onValueChange={setPaymentMethod}>
@@ -321,6 +494,25 @@ const Checkout = () => {
 
                       <label
                         className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-colors ${
+                          paymentMethod === "uddoktapay"
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-primary/50"
+                        }`}
+                      >
+                        <RadioGroupItem value="uddoktapay" />
+                        <div className="flex-1">
+                          <p className="font-medium text-foreground">অনলাইন পেমেন্ট (bKash/Nagad/Card)</p>
+                          <p className="text-sm text-muted-foreground">
+                            UddoktaPay এর মাধ্যমে নিরাপদ পেমেন্ট
+                          </p>
+                        </div>
+                        <span className="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">
+                          নিরাপদ
+                        </span>
+                      </label>
+
+                      <label
+                        className={`flex items-center gap-4 p-4 rounded-xl border cursor-pointer transition-colors ${
                           paymentMethod === "partial"
                             ? "border-primary bg-primary/5"
                             : "border-border hover:border-primary/50"
@@ -328,9 +520,9 @@ const Checkout = () => {
                       >
                         <RadioGroupItem value="partial" />
                         <div className="flex-1">
-                          <p className="font-medium text-foreground">আংশিক পেমেন্ট (bKash/Nagad)</p>
+                          <p className="font-medium text-foreground">আংশিক পেমেন্ট</p>
                           <p className="text-sm text-muted-foreground">
-                            {formatPrice(partialPayment)} এখন দিন, বাকি ডেলিভারিতে
+                            {formatPrice(partialPayment || Math.max(deliveryCharge, Math.round(total * 0.1)))} এখন দিন, বাকি ডেলিভারিতে
                           </p>
                         </div>
                       </label>
@@ -429,15 +621,28 @@ const Checkout = () => {
                         <p className="text-lg font-bold text-accent">{formatPrice(partialPayment)}</p>
                       </div>
                     )}
+
+                    {paymentMethod === "uddoktapay" && (
+                      <div className="bg-green-50 rounded-lg p-3 text-center">
+                        <p className="text-sm text-green-700">সম্পূর্ণ অগ্রিম পেমেন্ট</p>
+                        <p className="text-lg font-bold text-green-700">{formatPrice(total)}</p>
+                      </div>
+                    )}
                   </div>
 
                   <Button
                     type="submit"
                     className="w-full mt-6"
                     size="lg"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || paymentLoading}
                   >
-                    {isSubmitting ? "প্রসেসিং..." : "অর্ডার কনফার্ম করুন"}
+                    {isSubmitting || paymentLoading ? (
+                      "প্রসেসিং..."
+                    ) : paymentMethod === "uddoktapay" ? (
+                      "পেমেন্ট করুন"
+                    ) : (
+                      "অর্ডার কনফার্ম করুন"
+                    )}
                   </Button>
 
                   {!user && (
