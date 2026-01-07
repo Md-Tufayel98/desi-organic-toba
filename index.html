@@ -16,12 +16,8 @@
       'https://connect.facebook.net/en_US/fbevents.js');
       fbq('init', '1392740588528295');
       fbq('track', 'PageView');
-    </script>
-    <noscript>
-      <img height="1" width="1" style="display:none"
-        src="https://www.facebook.com/tr?id=1392740588528295&ev=PageView&noscript=1"/>
-    </noscript>
-    <!-- End Facebook Pixel Code -->
+     </script>
+     <!-- End Facebook Pixel Code -->
     <!-- TODO: Set the document title to the name of your application -->
     <title>Lovable App</title>
     <meta name="description" content="Lovable Generated Project" />
@@ -39,6 +35,11 @@
   </head>
 
   <body>
+    <!-- Facebook Pixel noscript fallback -->
+    <noscript>
+      <img height="1" width="1" style="display:none"
+        src="https://www.facebook.com/tr?id=1392740588528295&ev=PageView&noscript=1"/>
+    </noscript>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
