@@ -31,9 +31,10 @@ interface OrderDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   order?: any;
+  incompleteOrderId?: string;
 }
 
-export const OrderDialog = ({ open, onOpenChange, order }: OrderDialogProps) => {
+export const OrderDialog = ({ open, onOpenChange, order, incompleteOrderId }: OrderDialogProps) => {
   const queryClient = useQueryClient();
   const { data: products } = useProducts();
   const { data: deliveryZones } = useDeliveryZones();
@@ -176,6 +177,17 @@ export const OrderDialog = ({ open, onOpenChange, order }: OrderDialogProps) => 
 
         const { error: itemsError } = await supabase.from("order_items").insert(items);
         if (itemsError) throw itemsError;
+
+        // If this was a conversion from incomplete order, mark it as converted
+        if (incompleteOrderId) {
+          await supabase
+            .from("incomplete_orders")
+            .update({ 
+              is_converted: true, 
+              converted_order_id: newOrder.id 
+            })
+            .eq("id", incompleteOrderId);
+        }
 
         toast.success("অর্ডার তৈরি হয়েছে");
       }

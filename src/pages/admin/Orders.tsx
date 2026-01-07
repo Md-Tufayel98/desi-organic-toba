@@ -376,20 +376,15 @@ const AdminOrders = () => {
     try {
       const baseUrl = window.location.origin;
       const result = await createChargeClientSide({
-        full_name: paymentOrder.customer_name,
+        fullName: paymentOrder.customer_name,
         email: paymentOrder.customer_email || "customer@example.com",
         amount,
-        metadata: {
-          order_id: paymentOrder.id,
-          order_number: paymentOrder.order_number,
-          payment_type: "partial",
-        },
-        redirect_url: `${baseUrl}/payment-success?orderId=${paymentOrder.id}`,
-        cancel_url: `${baseUrl}/order-confirmation?orderId=${paymentOrder.id}`,
-        webhook_url: `${baseUrl}/api/payment-webhook`,
+        orderId: paymentOrder.id,
+        redirectUrl: `${baseUrl}/payment-success?orderId=${paymentOrder.id}`,
+        cancelUrl: `${baseUrl}/order-confirmation?orderId=${paymentOrder.id}`,
       });
 
-      if (result.status === true && result.payment_url) {
+      if (result.success && result.payment_url) {
         setGeneratedPaymentUrl(result.payment_url);
         toast.success("পেমেন্ট লিংক তৈরি হয়েছে");
       } else {
