@@ -602,21 +602,7 @@ const AdminOrders = () => {
                       )}
                     </TableCell>
                     <TableCell className="text-center">
-                      <div className="flex flex-col items-center gap-1">
-                        {getPaymentBadge(order.payment_status)}
-                        {/* Payment link button for unpaid/partial orders */}
-                        {(order.payment_status === "unpaid" || order.payment_status === "partial") && (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 text-xs gap-1"
-                            onClick={() => handleOpenPaymentDialog(order)}
-                          >
-                            <Link className="h-3 w-3" />
-                            পেমেন্ট লিংক
-                          </Button>
-                        )}
-                      </div>
+                      {getPaymentBadge(order.payment_status)}
                     </TableCell>
                     <TableCell className="text-center text-sm">
                       {format(new Date(order.created_at), "dd MMM, yyyy", { locale: bn })}
