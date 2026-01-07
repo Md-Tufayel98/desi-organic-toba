@@ -73,12 +73,19 @@ export const useSteadfastBalance = () => {
         body: { action: "check-balance" },
       });
 
-      if (error) throw error;
-      if (data.error) throw new Error(data.error);
+      if (error) {
+        console.error("Steadfast balance error:", error);
+        return null; // Return null instead of throwing to prevent UI errors
+      }
+      if (data?.error) {
+        console.error("Steadfast balance API error:", data.error);
+        return null;
+      }
 
       return data.balance as number;
     },
     staleTime: 5 * 60 * 1000, // 5 minutes
-    retry: 1,
+    retry: false, // Don't retry on failure
+    refetchOnWindowFocus: false,
   });
 };
