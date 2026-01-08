@@ -99,20 +99,42 @@ const OrderTracking = () => {
     setSearched(true);
 
     try {
-      const { data, error: fetchError } = await supabase
-        .from("orders")
-        .select(`
+      const rawQuery = query.trim();
+      const phoneQuery = rawQuery.startsWith("#") ? rawQuery.slice(1) : rawQuery;
+      const orderNumberWithHash = rawQuery.startsWith("#") ? rawQuery : `#${rawQuery}`;
+
+      const orderSelect = `
           id, order_number, customer_name, customer_phone, customer_email,
           shipping_address, shipping_city, shipping_area, order_status,
           payment_method, payment_status, total_amount, delivery_charge,
           subtotal, discount_amount, created_at, notes,
           steadfast_tracking_code, steadfast_status,
           order_items (product_name, variant_name, quantity, unit_price, total_price)
-        `)
-        .or(`order_number.eq.${query},customer_phone.eq.${query}`)
-        .order("created_at", { ascending: false })
-        .limit(1)
+        `;
+
+      // Try: order number first (DB stores order_number with "#")
+      const byOrderRes = await supabase
+        .from("orders")
+        .select(orderSelect)
+        .eq("order_number", orderNumberWithHash)
         .maybeSingle();
+
+      let data = byOrderRes.data;
+      let fetchError = byOrderRes.error;
+
+      // Fallback: search by phone number (latest order)
+      if (!fetchError && !data) {
+        const byPhoneRes = await supabase
+          .from("orders")
+          .select(orderSelect)
+          .eq("customer_phone", phoneQuery)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        data = byPhoneRes.data;
+        fetchError = byPhoneRes.error;
+      }
 
       if (fetchError) {
         setError("কিছু সমস্যা হয়েছে। আবার চেষ্টা করুন।");
