@@ -163,6 +163,12 @@
   }
 }
 
+@layer components {
+  .container {
+    @apply mx-auto px-4 max-w-[1140px];
+  }
+}
+
 @layer utilities {
   .text-balance {
     text-wrap: balance;
