@@ -165,14 +165,14 @@ const Cart = () => {
                 )}
 
                 <Link to="/checkout" className="block mt-6">
-                  <Button className="w-full" size="lg">
+                  <Button className="w-full py-6 md:py-8 px-4 md:px-6" size="lg">
                     চেকআউট করুন
                     <ArrowRight className="h-4 w-4 ml-2" />
                   </Button>
                 </Link>
 
                 <Link to="/products" className="block mt-3">
-                  <Button variant="outline" className="w-full">
+                  <Button variant="outline" className="w-full py-6 md:py-8 px-4 md:px-6">
                     কেনাকাটা চালিয়ে যান
                   </Button>
                 </Link>
